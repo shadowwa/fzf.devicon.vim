@@ -1,4 +1,4 @@
-fzf :purple-heart: devicon :heart: vim
+fzf :purple_heart: devicon :heart: vim
 ===============
 
 Things is a fork of `fzf.vim` that adds in support for devicons via the `devicon-lookup` tool
