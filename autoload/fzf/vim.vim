@@ -354,16 +354,8 @@ function! s:common_sink(action, lines) abort
 endfunction
 
 function! s:devicon_common_sink(action, items)
-  let items = a:items
-  let i = 1
-  let ln = len(items)
-  while i < ln
-    let parts = split(items[i], ' ')
-    let file_path = join(parts[1:], '')
-    let items[i] = file_path
-    let i += 1
-  endwhile
-  echo items
+  let items = map(a:items, "join(split(v:val, ' ')[1:], '')")
+
   call s:common_sink(a:action, items)
 endfunction
 
