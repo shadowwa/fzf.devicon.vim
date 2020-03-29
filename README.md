@@ -57,7 +57,7 @@ License
 MIT
 
 [fzf]:       https://github.com/junegunn/fzf
-[fzf.vim]:   https://github.com/junegunn/fzf
+[fzf.vim]:   https://github.com/junegunn/fzf.vim
 [run]:       https://github.com/junegunn/fzf/blob/master/README-VIM.md#fzfrun
 [vimrc]:     https://github.com/junegunn/dotfiles/blob/master/vimrc
 [ag]:        https://github.com/ggreer/the_silver_searcher
