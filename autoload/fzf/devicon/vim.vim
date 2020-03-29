@@ -357,7 +357,7 @@ function! fzf#devicon#vim#files(dir, ...)
     let dir = s:shortpath()
   endif
 
-  let args.options = ['-m', '--prompt', strwidth(dir) < &columns / 2 - 20 ? dir : '> ']
+  let args.options = ['-m', '--ansi', '--prompt', strwidth(dir) < &columns / 2 - 20 ? dir : '> ']
   let args.source = $FZF_DEFAULT_COMMAND.' | devicon-lookup'
 
   let args._action = get(g:, 'fzf_action', s:default_action)
