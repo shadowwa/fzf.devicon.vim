@@ -359,7 +359,7 @@ function! s:devicon_common_sink(action, items)
   let ln = len(items)
   while i < ln
     let parts = split(items[i], ' ')
-    let file_path = get(parts, 1, '')
+    let file_path = join(parts[1:], '')
     let items[i] = file_path
     let i += 1
   endwhile
@@ -626,7 +626,7 @@ function! fzf#vim#history(...)
 endfunction
 
 " ------------------------------------------------------------------
-" GFiles[?]
+" GFiles[?] - Modified with Devicons
 " ------------------------------------------------------------------
 
 function! s:get_git_root()
@@ -658,7 +658,7 @@ function! fzf#vim#gitfiles(args, ...)
   " We're trying to access the common sink function that fzf#wrap injects to
   " the options dictionary.
   let wrapped = fzf#wrap({
-  \ 'source':  'git -c color.status=always status --short --untracked-files=all',
+  \ 'source':  'git -c color.status=always status --short --untracked-files=all | devicon-lookup',
   \ 'dir':     root,
   \ 'options': ['--ansi', '--multi', '--nth', '2..,..', '--tiebreak=index', '--prompt', 'GitFiles?> ', '--preview', 'sh -c "(git diff --color=always -- {-1} | sed 1,4d; cat {-1}) | head -500"']
   \})
@@ -666,7 +666,7 @@ function! fzf#vim#gitfiles(args, ...)
   let wrapped.common_sink = remove(wrapped, 'sink*')
   function! wrapped.newsink(lines)
     let lines = extend(a:lines[0:0], map(a:lines[1:], 'substitute(v:val[3:], ".* -> ", "", "")'))
-    return self.common_sink(lines)
+    return s:devicon_common_sink(self._action, lines)
   endfunction
   let wrapped['sink*'] = remove(wrapped, 'newsink')
   return s:fzf('gfiles-diff', wrapped, a:000)
