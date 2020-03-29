@@ -368,7 +368,7 @@ function! s:devicon_common_sink(action, items)
 endfunction
 
 " ------------------------------------------------------------------
-" Files
+" Files - Modified with Devicons
 " ------------------------------------------------------------------
 function! s:shortpath()
   let short = fnamemodify(getcwd(), ':~:.')
@@ -536,13 +536,20 @@ function! fzf#vim#colors(...)
 endfunction
 
 " ------------------------------------------------------------------
-" Locate
+" Locate - Modified with Devicons
 " ------------------------------------------------------------------
 function! fzf#vim#locate(query, ...)
-  return s:fzf('locate', {
-  \ 'source':  'locate '.a:query,
-  \ 'options': '-m --prompt "Locate> "'
-  \}, a:000)
+  let args = {}
+
+  let args.source = 'locate '.a:query.' | devicon-lookup'
+  let args.options = '-m --prompt "Locate> "'
+
+  function! args.sink(lines) abort
+    return s:devicon_common_sink(self._action, a:lines)
+  endfunction
+  let args['sink*'] = remove(args, 'sink')
+
+  return s:fzf('locate', args, a:000)
 endfunction
 
 " ------------------------------------------------------------------
@@ -633,11 +640,18 @@ function! fzf#vim#gitfiles(args, ...)
     return s:warn('Not in git repo')
   endif
   if a:args != '?'
-    return s:fzf('gfiles', {
-    \ 'source':  'git ls-files '.a:args.(s:is_win ? '' : ' | uniq'),
-    \ 'dir':     root,
-    \ 'options': '-m --prompt "GitFiles> "'
-    \}, a:000)
+    let args = {}
+
+    let args.source = 'git ls-files '.a:args.(s:is_win ? '' : ' | uniq').' | devicon-lookup'
+    let args.dir = root
+    let args.options = '-m --prompt "GitFiles> "'
+
+    function! args.sink(lines) abort
+      return s:devicon_common_sink(self._action, a:lines)
+    endfunction
+    let args['sink*'] = remove(args, 'sink')
+
+    return s:fzf('gfiles', args, a:000)
   endif
 
   " Here be dragons!
