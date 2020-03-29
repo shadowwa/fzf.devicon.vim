@@ -10,6 +10,7 @@ fi
 
 IFS=':' read -r -a INPUT <<< "$1"
 FILE=${INPUT[0]}
+FILE=$(echo "$FILE" | sed 's/[^ ]* //')
 CENTER=${INPUT[1]}
 
 if [[ $1 =~ ^[A-Z]:\\ ]]; then

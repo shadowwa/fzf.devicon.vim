@@ -42,6 +42,20 @@ if s:is_win
     let s:bin.preview = fnamemodify(s:bin.preview, ':8')
   endif
   let s:bin.preview = 'bash '.escape(s:bin.preview, '\')
+
+  function! s:fzf_call(fn, ...)
+    let shellslash = &shellslash
+    try
+      set noshellslash
+      return call(a:fn, a:000)
+    finally
+      let &shellslash = shellslash
+    endtry
+  endfunction
+else
+  function! s:fzf_call(fn, ...)
+    return call(a:fn, a:000)
+  endfunction
 endif
 
 let s:wide = 120
@@ -293,6 +307,67 @@ function! fzf#vim#_uniq(list)
 endfunction
 
 " ------------------------------------------------------------------
+" Devicon Common
+" ------------------------------------------------------------------
+
+" The follow was copied from the `fzf` plugin. It is declared there (and here)
+" with a script scope so we don't have direct access to it
+function! s:fzf_expand(fmt)
+  return s:fzf_call('expand', a:fmt, 1)
+endfunction
+function! s:common_sink(action, lines) abort
+  if len(a:lines) < 2
+    return
+  endif
+  let key = remove(a:lines, 0)
+  let Cmd = get(a:action, key, 'e')
+  if type(Cmd) == type(function('call'))
+    return Cmd(a:lines)
+  endif
+  if len(a:lines) > 1
+    augroup fzf_swap
+      autocmd SwapExists * let v:swapchoice='o'
+            \| call s:warn('fzf: E325: swap file exists: '.s:fzf_expand('<afile>'))
+    augroup END
+  endif
+  try
+    let empty = empty(s:fzf_expand('%')) && line('$') == 1 && empty(getline(1)) && !&modified
+    let autochdir = &autochdir
+    set noautochdir
+    for item in a:lines
+      if empty
+        execute 'e' s:escape(item)
+        let empty = 0
+      else
+        call s:open(Cmd, item)
+      endif
+      if !has('patch-8.0.0177') && !has('nvim-0.2') && exists('#BufEnter')
+            \ && isdirectory(item)
+        doautocmd BufEnter
+      endif
+    endfor
+  catch /^Vim:Interrupt$/
+  finally
+    let &autochdir = autochdir
+    silent! autocmd! fzf_swap
+  endtry
+endfunction
+
+function! s:devicon_common_sink(action, items)
+  let items = a:items
+  let i = 1
+  let ln = len(items)
+  while i < ln
+    let parts = split(items[i], ' ')
+    let file_path = get(parts, 1, '')
+    let items[i] = file_path
+    let i += 1
+  endwhile
+  echo items
+  call s:common_sink(a:action, items)
+endfunction
+
+" ------------------------------------------------------------------
 " Files
 " ------------------------------------------------------------------
 function! s:shortpath()
@@ -318,7 +393,15 @@ function! fzf#vim#files(dir, ...)
   endif
 
   let args.options = ['-m', '--prompt', strwidth(dir) < &columns / 2 - 20 ? dir : '> ']
-  call s:merge_opts(args, get(g:, 'fzf_files_options', []))
+  let args.source = $FZF_DEFAULT_COMMAND.' | devicon-lookup'
+
+  let args._action = get(g:, 'fzf_action', s:default_action)
+  let args.options = ' --expect='.join(keys(args._action), ',')
+  function! args.sink(lines) abort
+    return s:devicon_common_sink(self._action, a:lines)
+  endfunction
+  let args['sink*'] = remove(args, 'sink')
+
   return s:fzf('files', args, a:000)
 endfunction
 
