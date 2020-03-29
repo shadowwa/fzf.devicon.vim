@@ -7,7 +7,7 @@ Installation
 ------------
 
 fzf.devicon.vim depends on BOTH the basic Vim plugin of [the main fzf
-repository](https://github.com/junegunn/fzf) and [the fzf.vim plugin](https::github.com/junegunn/fzf.vim) which means you need to **set up both "fzf" and
+repository][fzf] and [the fzf.vim plugin][fzf.vim] which means you need to **set up both "fzf" and
 "fzf.vim" on Vim**.
 [README-VIM][README-VIM].
 
@@ -56,9 +56,10 @@ License
 
 MIT
 
-[fzf]:   https://github.com/junegunn/fzf
-[run]:   https://github.com/junegunn/fzf/blob/master/README-VIM.md#fzfrun
-[vimrc]: https://github.com/junegunn/dotfiles/blob/master/vimrc
-[ag]:    https://github.com/ggreer/the_silver_searcher
-[rg]:    https://github.com/BurntSushi/ripgrep
-[us]:    https://github.com/SirVer/ultisnips
+[fzf]:       https://github.com/junegunn/fzf
+[fzf.vim]:   https://github.com/junegunn/fzf
+[run]:       https://github.com/junegunn/fzf/blob/master/README-VIM.md#fzfrun
+[vimrc]:     https://github.com/junegunn/dotfiles/blob/master/vimrc
+[ag]:        https://github.com/ggreer/the_silver_searcher
+[rg]:        https://github.com/BurntSushi/ripgrep
+[us]:        https://github.com/SirVer/ultisnips
