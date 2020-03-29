@@ -819,6 +819,7 @@ function! fzf#vim#grep(grep_command, has_column, ...)
   let capname = join(map(words, 'toupper(v:val[0]).v:val[1:]'), '')
   let opts = {
   \ 'column':  a:has_column,
+  \ 'source':  a:grep_command,
   \ 'options': ['--ansi', '--prompt', capname.'> ',
   \             '--multi', '--bind', 'alt-a:select-all,alt-d:deselect-all',
   \             '--color', 'hl:4,hl+:12']
@@ -827,13 +828,7 @@ function! fzf#vim#grep(grep_command, has_column, ...)
     return s:ag_handler(a:lines, self.column)
   endfunction
   let opts['sink*'] = remove(opts, 'sink')
-  try
-    let prev_default_command = $FZF_DEFAULT_COMMAND
-    let $FZF_DEFAULT_COMMAND = a:grep_command
-    return s:fzf(name, opts, a:000)
-  finally
-    let $FZF_DEFAULT_COMMAND = prev_default_command
-  endtry
+  return s:fzf(name, opts, a:000)
 endfunction
 
 " ------------------------------------------------------------------
