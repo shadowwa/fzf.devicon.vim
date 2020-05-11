@@ -91,7 +91,7 @@ endfunction
 function! fzf#devicon#vim#with_preview(...)
   " Default options
   let options = {}
-  let window = 'right'
+  let window = ''
 
   let args = copy(a:000)
 
@@ -113,7 +113,11 @@ function! fzf#devicon#vim#with_preview(...)
     call remove(args, 0)
   endif
 
-  let preview = ['--preview-window', window, '--preview', (s:is_win ? s:bin.preview : fzf#shellescape(s:bin.preview)).' '.placeholder]
+  let preview = []
+  if len(window)
+    let preview += ['--preview-window', window]
+  endif
+  let preview += ['--preview', (s:is_win ? s:bin.preview : fzf#shellescape(s:bin.preview)).' '.placeholder]
 
   if len(args)
     call extend(preview, ['--bind', join(map(args, 'v:val.":toggle-preview"'), ',')])
@@ -499,7 +503,7 @@ function! fzf#devicon#vim#ag(query, ...)
   let query = empty(a:query) ? '^(?=.)' : a:query
   let args = copy(a:000)
   let ag_opts = len(args) > 1 && type(args[0]) == s:TYPE.string ? remove(args, 0) : ''
-  let command = ag_opts . ' ' . fzf#shellescape(query)
+  let command = ag_opts . ' -- ' . fzf#shellescape(query)
   return call('fzf#vim#ag_raw', insert(args, command, 0))
 endfunction
 

@@ -6,6 +6,11 @@ Things is a fork of `fzf.vim` that adds in support for devicons via the `devicon
 This fork is compatible side by side with `fzf.vim` however it is NOT required! The commands
 that this plugin exports are post-fixed so as to NOT conflict with the originals
 
+Due to the rename that took place after the fork updates from upstream need to be applied manually.
+Also not all the changes to upstream are relevant cause much of the scope is reduced.
+The current latest git commit from `fzf.vim` that is included here is
+`3925db8307ed3ed102eefdebfa4073396c2c347b`
+
 Example GIF
 -----------
 
