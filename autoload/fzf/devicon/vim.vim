@@ -301,7 +301,7 @@ function! s:devicon_common_sink(action, lines) abort
   " This is there devicon stripping happens
   " It is AFTER we grab the first item as the key as this allows
   " actions to work correctly
-  let lines = map(a:lines, "join(split(v:val, ' ')[1:], '')")
+  let lines = map(a:lines, "join(split(v:val, ' ')[1:], ' ')")
 
   if type(Cmd) == type(function('call'))
     return Cmd(lines)
