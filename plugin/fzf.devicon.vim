@@ -48,12 +48,14 @@ function! s:p(bang, ...)
 endfunction
 
 call s:defs([
-\'command!      -bang -nargs=? -complete=dir FilesWithDevicons       call fzf#devicon#vim#files(<q-args>, s:p(<bang>0), <bang>0)',
-\'command!      -bang -nargs=? GitFilesWithDevicons                  call fzf#devicon#vim#gitfiles(<q-args>, <q-args> == "?" ? {} : s:p(<bang>0), <bang>0)',
-\'command!      -bang -nargs=? GFilesWithDevicons                    call fzf#devicon#vim#gitfiles(<q-args>, <q-args> == "?" ? {} : s:p(<bang>0), <bang>0)',
-\'command!      -bang -nargs=+ -complete=dir LocateWithDevicons      call fzf#devicon#vim#locate(<q-args>, s:p(<bang>0), <bang>0)',
-\'command!      -bang -nargs=* AgWithDevicons                        call fzf#devicon#vim#ag(<q-args>, s:p(<bang>0), <bang>0)',
-\'command!      -bang -nargs=* RgWithDevicons                        call fzf#devicon#vim#grep("rg --column --line-number --no-heading --color=always --smart-case -- ".shellescape(<q-args>), 1, s:p(<bang>0), <bang>0)'])
+\'command!      -bang -nargs=? -complete=dir FilesWithDevicons       call fzf#devicon#vim#files(<q-args>, fzf#devicon#vim#with_preview(), <bang>0)',
+\'command!      -bang -nargs=? GitFilesWithDevicons                  call fzf#devicon#vim#gitfiles(<q-args>, fzf#devicon#vim#with_preview(<q-args> == "?" ? { "placeholder": "" } : {}), <bang>0)',
+\'command!      -bang -nargs=? GFilesWithDevicons                    call fzf#devicon#vim#gitfiles(<q-args>, fzf#devicon#vim#with_preview(<q-args> == "?" ? { "placeholder": "" } : {}), <bang>0)',
+\'command!      -bang -nargs=+ -complete=dir LocateWithDevicons      call fzf#devicon#vim#locate(<q-args>, fzf#devicon#vim#with_preview(), <bang>0)',
+\'command!      -bang -nargs=* AgWithDevicons                        call fzf#devicon#vim#ag(<q-args>, fzf#devicon#vim#with_preview(), <bang>0)',
+\'command!      -bang -nargs=* RgWithDevicons                        call fzf#devicon#vim#grep("rg --column --line-number --no-heading --color=always --smart-case -- ".shellescape(<q-args>), 1, fzf#devicon#vim#with_preview(), <bang>0)',
+\'command!      -bang -nargs=* RGWithDevicons                        call fzf#devicon#vim#grep2("rg --column --line-number --no-heading --color=always --smart-case -- ", <q-args>, fzf#devicon#vim#with_preview(), <bang>0)',
+\ ])
 
 let &cpoptions = s:cpo_save
 unlet s:cpo_save
