@@ -28,12 +28,74 @@ set cpoptions&vim
 " Common
 " ------------------------------------------------------------------
 
+let s:winpath = {}
+function! s:winpath(path)
+  if has_key(s:winpath, a:path)
+    return s:winpath[a:path]
+  endif
+
+  let winpath = split(system('for %A in ("'.a:path.'") do @echo %~sA'), "\n")[0]
+  let s:winpath[a:path] = winpath
+
+  return winpath
+endfunction
+
+let s:warned = 0
+function! s:bash()
+  if exists('s:bash')
+    return s:bash
+  endif
+
+  let custom_bash = get(g:, 'fzf_preview_bash', '')
+  let git_bash = 'C:\Program Files\Git\bin\bash.exe'
+  let candidates = filter(s:is_win ? [custom_bash, 'bash', git_bash] : [custom_bash, 'bash'], 'len(v:val)')
+
+  let found = filter(map(copy(candidates), 'exepath(v:val)'), 'len(v:val)')
+  if empty(found)
+    if !s:warned
+      call s:warn(printf('Preview window not supported (%s not found)', join(candidates, ', ')))
+      let s:warned = 1
+    endif
+    let s:bash = ''
+    return s:bash
+  endif
+
+  let s:bash = found[0]
+
+  " Make 8.3 filename via cmd.exe
+  if s:is_win
+    let s:bash = s:winpath(s:bash)
+  endif
+
+  return s:bash
+endfunction
+
+function! s:escape_for_bash(path)
+  if !s:is_win
+    return fzf#shellescape(a:path)
+  endif
+
+  if !exists('s:is_linux_like_bash')
+    call system(s:bash . ' -c "ls /mnt/[A-Za-z]"')
+    let s:is_linux_like_bash = v:shell_error == 0
+  endif
+
+  let path = substitute(a:path, '\', '/', 'g')
+  if s:is_linux_like_bash
+    let path = substitute(path, '^\([A-Z]\):', '/mnt/\L\1', '')
+  endif
+
+  return escape(path, ' ')
+endfunction
+
+let s:min_version = '0.23.0'
 let s:is_win = has('win32') || has('win64')
+let s:is_wsl_bash = s:is_win && (exepath('bash') =~? 'Windows[/\\]system32[/\\]bash.exe$')
 let s:layout_keys = ['window', 'up', 'down', 'left', 'right']
-let s:bin_dir = expand('<sfile>:h:h:h:h').'/bin/'
+let s:bin_dir = expand('<sfile>:p:h:h:h:h').'/bin/'
 let s:bin = {
 \ 'preview': s:bin_dir.'preview.sh'}
-let s:TYPE = {'dict': type({}), 'funcref': type(function('call')), 'string': type(''), 'list': type([])}
+let s:TYPE = {'bool': type(0), 'dict': type({}), 'funcref': type(function('call')), 'string': type(''), 'list': type([])}
 if s:is_win
   if has('nvim')
     let s:bin.preview = split(system('for %A in ("'.s:bin.preview.'") do @echo %~sA'), "\n")[0]
@@ -58,6 +120,21 @@ else
 endif
 
 let s:wide = 120
+let s:checked = 0
+
+function! s:check_requirements()
+  if s:checked
+    return
+  endif
+
+  if !exists('*fzf#run')
+    throw "fzf#run function not found. You also need Vim plugin from the main fzf repository (i.e. junegunn/fzf *and* junegunn/fzf.vim)"
+  endif
+  if !exists('*fzf#exec')
+    throw "fzf#exec function not found. You need to upgrade Vim plugin from the main fzf repository ('junegunn/fzf')"
+  endif
+  let s:checked = !empty(fzf#exec(s:min_version))
+endfunction
 
 function! s:extend_opts(dict, eopts, prepend)
   if empty(a:eopts)
@@ -87,26 +164,40 @@ function! s:prepend_opts(dict, eopts)
   return s:extend_opts(a:dict, a:eopts, 1)
 endfunction
 
-" [[options to wrap], [preview window expression], [toggle-preview keys...]]
+" [spec to wrap], [preview window expression], [toggle-preview keys...]
 function! fzf#devicon#vim#with_preview(...)
-  " Default options
-  let options = {}
+  " Default spec
+  let spec = {}
   let window = ''
 
   let args = copy(a:000)
 
-  " Options to wrap
+  " Spec to wrap
   if len(args) && type(args[0]) == s:TYPE.dict
-    let options = copy(args[0])
+    let spec = copy(args[0])
     call remove(args, 0)
   endif
 
-  " Placeholder expression (TODO/TBD: undocumented)
-  let placeholder = get(options, 'placeholder', '{}')
+  if !executable(s:bash())
+    return spec
+  endif
 
-  " Preview window
+  " Placeholder expression (TODO/TBD: undocumented)
+  let placeholder = get(spec, 'placeholder', '{}')
+
+  " g:fzf_preview_window
+  if empty(args)
+    let preview_args = get(g:, 'fzf_preview_window', ['', 'ctrl-/'])
+    if empty(preview_args)
+      let args = ['hidden']
+    else
+      " For backward-compatiblity
+      let args = type(preview_args) == type('') ? [preview_args] : copy(preview_args)
+    endif
+  endif
+
   if len(args) && type(args[0]) == s:TYPE.string
-    if args[0] !~# '^\(up\|down\|left\|right\)'
+    if len(args[0]) && args[0] !~# '^\(up\|down\|left\|right\|hidden\)'
       throw 'invalid preview window: '.args[0]
     endif
     let window = args[0]
@@ -117,13 +208,27 @@ function! fzf#devicon#vim#with_preview(...)
   if len(window)
     let preview += ['--preview-window', window]
   endif
-  let preview += ['--preview', (s:is_win ? s:bin.preview : fzf#shellescape(s:bin.preview)).' '.placeholder]
+  if s:is_win
+    if empty($MSWINHOME)
+      let $MSWINHOME = $HOME
+    endif
+    if s:is_wsl_bash && $WSLENV !~# '[:]\?MSWINHOME\(\/[^:]*\)\?\(:\|$\)'
+      let $WSLENV = 'MSWINHOME/u:'.$WSLENV
+    endif
+  endif
+  let preview_cmd = s:bash() . ' ' . s:escape_for_bash(s:bin.preview)
+  if len(placeholder)
+    let preview += ['--preview', preview_cmd.' '.placeholder]
+  end
+  if &ambiwidth ==# 'double'
+    let preview += ['--no-unicode']
+  end
 
   if len(args)
     call extend(preview, ['--bind', join(map(args, 'v:val.":toggle-preview"'), ',')])
   endif
-  call s:merge_opts(options, preview)
-  return options
+  call s:merge_opts(spec, preview)
+  return spec
 endfunction
 
 function! s:remove_layout(opts)
@@ -226,6 +331,8 @@ function! s:buflisted()
 endfunction
 
 function! s:fzf(name, opts, extra)
+  call s:check_requirements()
+
   let [extra, bang] = [{}, 0]
   if len(a:extra) <= 1
     let first = get(a:extra, 0, 0)
@@ -240,6 +347,7 @@ function! s:fzf(name, opts, extra)
     throw 'invalid number of arguments'
   endif
 
+  let extra  = copy(extra)
   let eopts  = has_key(extra, 'options') ? remove(extra, 'options') : ''
   let merged = extend(copy(a:opts), extra)
   call s:merge_opts(merged, eopts)
@@ -259,6 +367,7 @@ endfunction
 
 function! s:open(cmd, target)
   if stridx('edit', a:cmd) == 0 && fnamemodify(a:target, ':p') ==# expand('%:p')
+    normal! m'
     return
   endif
   execute a:cmd s:escape(a:target)
@@ -291,6 +400,7 @@ endfunction
 function! s:fzf_expand(fmt)
   return s:fzf_call('expand', a:fmt, 1)
 endfunction
+
 function! s:devicon_common_sink(action, lines) abort
   if len(a:lines) < 2
     return
@@ -301,7 +411,7 @@ function! s:devicon_common_sink(action, lines) abort
   " This is there devicon stripping happens
   " It is AFTER we grab the first item as the key as this allows
   " actions to work correctly
-  let lines = map(a:lines, "join(split(v:val, ' ')[1:], '')")
+  let lines = map(a:lines, "join(split(v:val, ' ')[1:], ' ')")
 
   if type(Cmd) == type(function('call'))
     return Cmd(lines)
@@ -364,11 +474,10 @@ function! fzf#devicon#vim#files(dir, ...)
     let dir = s:shortpath()
   endif
 
-  let args.options = ['-m', '--ansi', '--prompt', strwidth(dir) < &columns / 2 - 20 ? dir : '> ']
+  let args.options = ['-m', '--prompt', strwidth(dir) < &columns / 2 - 20 ? dir : '> ']
   let args.source = $FZF_DEFAULT_COMMAND.' | devicon-lookup'
 
-  let args._action = get(g:, 'fzf_action', s:default_action)
-  let args.options = ' --expect='.join(keys(args._action), ',')
+  call s:merge_opts(args, get(g:, 'fzf_files_options', []))
   function! args.sink(lines) abort
     return s:devicon_common_sink(self._action, a:lines)
   endfunction
@@ -376,6 +485,18 @@ function! fzf#devicon#vim#files(dir, ...)
 
   return s:fzf('files', args, a:000)
 endfunction
+
+" ------------------------------------------------------------------
+" Lines
+" ------------------------------------------------------------------
+
+" ------------------------------------------------------------------
+" BLines
+" ------------------------------------------------------------------
+
+" ------------------------------------------------------------------
+" Colors
+" ------------------------------------------------------------------
 
 " ------------------------------------------------------------------
 " Locate - Modified with Devicons
@@ -399,11 +520,34 @@ function! fzf#devicon#vim#locate(query, ...)
 endfunction
 
 " ------------------------------------------------------------------
+" History[:/]
+" ------------------------------------------------------------------
+
+" ------------------------------------------------------------------
 " GFiles[?] - Modified with Devicons
 " ------------------------------------------------------------------
-function! s:get_git_root()
-  let root = split(system('git rev-parse --show-toplevel'), '\n')[0]
-  return v:shell_error ? '' : root
+
+function! s:get_git_root(dir)
+  let dir = len(a:dir) ? a:dir : substitute(split(expand('%:p:h'), '[/\\]\.git\([/\\]\|$\)')[0], '^fugitive://', '', '')
+  let root = systemlist('git -C ' . fzf#shellescape(dir) . ' rev-parse --show-toplevel')[0]
+  return v:shell_error ? '' : (len(a:dir) ? fnamemodify(a:dir, ':p') : root)
+endfunction
+
+function! s:version_requirement(val, min)
+  for idx in range(0, len(a:min) - 1)
+    let v = get(a:val, idx, 0)
+    if     v < a:min[idx] | return 0
+    elseif v > a:min[idx] | return 1
+    endif
+  endfor
+  return 1
+endfunction
+
+function! s:git_version_requirement(...)
+  if !exists('s:git_version')
+    let s:git_version = map(split(split(system('git --version'))[2], '\.'), 'str2nr(v:val)')
+  endif
+  return s:version_requirement(s:git_version, a:000)
 endfunction
 
 function! fzf#devicon#vim#gitfiles(args, ...)
@@ -411,14 +555,20 @@ function! fzf#devicon#vim#gitfiles(args, ...)
     return s:warn('devicon-lookup is not found. It can be installed with `cargo install devicon-lookup`')
   endif
 
-  let root = s:get_git_root()
+  let dir = get(get(a:, 1, {}), 'dir', '')
+  let root = s:get_git_root(dir)
   if empty(root)
     return s:warn('Not in git repo')
   endif
+  let prefix = 'git -C ' . fzf#shellescape(root) . ' '
   if a:args !=# '?'
     let args = {}
 
-    let args.source = 'git ls-files '.a:args.(s:is_win ? '' : ' | uniq').' | devicon-lookup'
+    let args.source = prefix . 'ls-files ' . a:args
+    if s:git_version_requirement(2, 31)
+      let args.source .= ' --deduplicate'
+    endif
+    let args.source .= ' | devicon-lookup'
     let args.dir = root
     let args.options = '-m --prompt "GitFiles> "'
 
@@ -433,10 +583,18 @@ function! fzf#devicon#vim#gitfiles(args, ...)
   " Here be dragons!
   " We're trying to access the common sink function that fzf#wrap injects to
   " the options dictionary.
+  let bar = s:is_win ? '^|' : '|'
+  let diff_prefix = 'git -C ' . s:escape_for_bash(root) . ' '
+  let preview = printf(
+    \ s:bash() . ' -c "if [[ {2} =~ M ]]; then %s; else %s {-1}; fi"',
+    \ executable('delta')
+      \ ? diff_prefix . 'diff -- {-1} ' . bar . ' delta --width $FZF_PREVIEW_COLUMNS --file-style=omit ' . bar . ' sed 1d'
+      \ : diff_prefix . 'diff --color=always -- {-1} ' . bar . ' sed 1,4d',
+    \ s:escape_for_bash(s:bin.preview))
   let wrapped = fzf#wrap({
-  \ 'source':  'git -c color.status=always status --short --untracked-files=all | devicon-lookup',
+  \ 'source':  prefix . '-c color.status=always status --short --untracked-files=all | devicon-lookup',
   \ 'dir':     root,
-  \ 'options': ['--ansi', '--multi', '--nth', '2..,..', '--tiebreak=index', '--prompt', 'GitFiles?> ', '--preview', 'sh -c "(git diff --color=always -- {-1} | sed 1,4d; cat {-1}) | head -500"']
+  \ 'options': ['--ansi', '--multi', '--nth', '2..,..', '--tiebreak=index', '--prompt', 'GitFiles?> ', '--preview', preview]
   \})
   call s:remove_layout(wrapped)
   let wrapped.common_sink = remove(wrapped, 'sink*')
@@ -449,28 +607,31 @@ function! fzf#devicon#vim#gitfiles(args, ...)
 endfunction
 
 " ------------------------------------------------------------------
+" Buffers
+" ------------------------------------------------------------------
+
+" ------------------------------------------------------------------
 " Ag / Rg - TODO: Required devicon-lookup changes to support regex for
 " filename
 "
 " These are correctly prefixed just don't do anything new yet
 " ------------------------------------------------------------------
-function! s:ag_to_qf(line, has_column)
-  let parts = split(a:line, '[^:]\zs:\ze[^:]')
-  let text = join(parts[(a:has_column ? 3 : 2):], ':')
-  let dict = {'filename': &autochdir ? fnamemodify(parts[0], ':p') : parts[0], 'lnum': parts[1], 'text': text}
-  if a:has_column
-    let dict.col = parts[2]
+function! s:ag_to_qf(line)
+  let parts = matchlist(a:line, '\(.\{-}\)\s*:\s*\(\d\+\)\%(\s*:\s*\(\d\+\)\)\?\%(\s*:\(.*\)\)\?')
+  let dict = {'filename': &autochdir ? fnamemodify(parts[1], ':p') : parts[1], 'lnum': parts[2], 'text': parts[4]}
+  if len(parts[3])
+    let dict.col = parts[3]
   endif
   return dict
 endfunction
 
-function! s:ag_handler(lines, has_column)
+function! s:ag_handler(lines)
   if len(a:lines) < 2
     return
   endif
 
   let cmd = s:action_for(a:lines[0], 'e')
-  let list = map(filter(a:lines[1:], 'len(v:val)'), 's:ag_to_qf(v:val, a:has_column)')
+  let list = map(filter(a:lines[1:], 'len(v:val)'), 's:ag_to_qf(v:val)')
   if empty(list)
     return
   endif
@@ -479,20 +640,20 @@ function! s:ag_handler(lines, has_column)
   try
     call s:open(cmd, first.filename)
     execute first.lnum
-    if a:has_column
-      execute 'normal!' first.col.'|'
+    if has_key(first, 'col')
+      call cursor(0, first.col)
     endif
-    normal! zz
+    normal! zvzz
   catch
   endtry
 
   call s:fill_quickfix(list)
 endfunction
 
-function! s:devicon_grep_sink(items, has_column)
-  let items = map(a:items, "join(split(v:val, ' ')[1:], '')")
+function! s:devicon_grep_sink(items)
+  let items = map(a:items, "join(split(v:val, ' ')[1:], ' ')")
 
-  call s:ag_handler(items, a:has_column)
+  call s:ag_handler(items)
 endfunction
 
 " query, [[ag options], options]
@@ -504,10 +665,10 @@ function! fzf#devicon#vim#ag(query, ...)
   let args = copy(a:000)
   let ag_opts = len(args) > 1 && type(args[0]) == s:TYPE.string ? remove(args, 0) : ''
   let command = ag_opts . ' -- ' . fzf#shellescape(query)
-  return call('fzf#vim#ag_raw', insert(args, command, 0))
+  return call('fzf#devicon#vim#ag_raw', insert(args, command, 0))
 endfunction
 
-" ag command suffix, [options]
+" ag command suffix, [spec (dict)], [fullscreen (bool)]
 function! fzf#devicon#vim#ag_raw(command_suffix, ...)
   if !executable('ag')
     return s:warn('ag is not found')
@@ -515,12 +676,13 @@ function! fzf#devicon#vim#ag_raw(command_suffix, ...)
   return call('fzf#devicon#vim#grep', extend(['ag --nogroup --column --color '.a:command_suffix, 1], a:000))
 endfunction
 
-" command (string), has_column (0/1), [options (dict)], [fullscreen (0/1)]
-function! fzf#devicon#vim#grep(grep_command, has_column, ...)
+" command (string), [spec (dict)], [fullscreen (bool)]
+function! fzf#devicon#vim#grep(grep_command, ...)
   if !executable('devicon-lookup')
     return s:warn('devicon-lookup is not found. It can be installed with `cargo install devicon-lookup`')
   endif
 
+  let args = copy(a:000)
   let words = []
   for word in split(a:grep_command)
     if word !~# '^[a-z]'
@@ -532,20 +694,100 @@ function! fzf#devicon#vim#grep(grep_command, has_column, ...)
   let name    = join(words, '-')
   let capname = join(map(words, 'toupper(v:val[0]).v:val[1:]'), '')
   let opts = {
-  \ 'column':  a:has_column,
   \ 'source':  a:grep_command.' | devicon-lookup --color --prefix :',
   \ 'options': ['--ansi', '--prompt', capname.'> ',
   \             '--multi', '--bind', 'alt-a:select-all,alt-d:deselect-all',
-  \             '--color', 'hl:4,hl+:12']
+  \             '--delimiter', ':', '--preview-window', '+{2}-/2']
   \}
+  if len(args) && type(args[0]) == s:TYPE.bool
+    call remove(args, 0)
+  endif
+
   function! opts.sink(lines)
-    return s:devicon_grep_sink(a:lines, self.column)
+    return s:devicon_grep_sink(a:lines)
   endfunction
   let opts['sink*'] = remove(opts, 'sink')
-  return s:fzf(name, opts, a:000)
+  try
+    let prev_default_command = $FZF_DEFAULT_COMMAND
+    let $FZF_DEFAULT_COMMAND = a:grep_command
+    return s:fzf(name, opts, args)
+  finally
+    let $FZF_DEFAULT_COMMAND = prev_default_command
+  endtry
 endfunction
+
+
+" command_prefix (string), initial_query (string), [spec (dict)], [fullscreen (bool)]
+function! fzf#devicon#vim#grep2(command_prefix, query, ...)
+  let args = copy(a:000)
+  let words = []
+  for word in split(a:command_prefix)
+    if word !~# '^[a-z]'
+      break
+    endif
+    call add(words, word)
+  endfor
+  let words = empty(words) ? ['grep'] : words
+  let name = join(words, '-')
+  let opts = {
+  \ 'source': ':',
+  \ 'options': ['--ansi', '--prompt', toupper(name).'> ', '--query', a:query,
+  \             '--disabled',
+  \             '--bind', 'start:reload:'.a:command_prefix.' '.shellescape(a:query) . '| devicon-lookup --color --prefix :',
+  \             '--bind', 'change:reload:'.a:command_prefix.' {q} | devicon-lookup --color --prefix : || :',
+  \             '--multi', '--bind', 'alt-a:select-all,alt-d:deselect-all',
+  \             '--delimiter', ':', '--preview-window', '+{2}-/2']
+  \}
+  if len(args) && type(args[0]) == s:TYPE.bool
+    call remove(args, 0)
+  endif
+  function! opts.sink(lines)
+    return s:devicon_grep_sink(a:lines)
+  endfunction
+  let opts['sink*'] = remove(opts, 'sink')
+  return s:fzf(name, opts, args)
+endfunction
+
+" ------------------------------------------------------------------
+" BTags
+" ------------------------------------------------------------------
+
+" ------------------------------------------------------------------
+" Snippets (UltiSnips)
+" ------------------------------------------------------------------
+
+" ------------------------------------------------------------------
+" Commands
+" ------------------------------------------------------------------
+
+" ------------------------------------------------------------------
+" Marks
+" ------------------------------------------------------------------
+
+" ------------------------------------------------------------------
+" Help tags
+" ------------------------------------------------------------------
+
+" ------------------------------------------------------------------
+" File types
+" ------------------------------------------------------------------
+
+" ------------------------------------------------------------------
+" Windows
+" ------------------------------------------------------------------
+
+" ------------------------------------------------------------------
+" Commits / BCommits
+" ------------------------------------------------------------------
+
+" ------------------------------------------------------------------
+" fzf#vim#maps(mode, opts[with count and op])
+" ------------------------------------------------------------------
+
+" ----------------------------------------------------------------------------
+" fzf#vim#complete - completion helper
+" ----------------------------------------------------------------------------
 
 " ------------------------------------------------------------------
 let &cpoptions = s:cpo_save
 unlet s:cpo_save
-

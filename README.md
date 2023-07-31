@@ -9,7 +9,7 @@ that this plugin exports are post-fixed so as to NOT conflict with the originals
 Due to the rename that took place after the fork updates from upstream need to be applied manually.
 Also not all the changes to upstream are relevant cause much of the scope is reduced.
 The current latest git commit from `fzf.vim` that is included here is
-`3925db8307ed3ed102eefdebfa4073396c2c347b`
+`e0d131d95364edf940a70127fcb5748b86e6955e`
 
 Example GIF
 -----------
@@ -36,7 +36,6 @@ repository][fzf] which means you need to **install both "fzf" and
 [fzf-main]: https://github.com/junegunn/fzf
 [README-VIM]: https://github.com/junegunn/fzf/blob/master/README-VIM.md
 
-
 ### Using [vim-plug](https://github.com/junegunn/vim-plug)
 
 ```vim
@@ -46,6 +45,15 @@ Plug 'coreyja/fzf.devicon.vim'
 
 `fzf#install()` makes sure that you have the latest binary, but it's optional,
 so you can omit it if you use a plugin manager that doesn't support hooks.
+
+### Dependencies
+
+- [fzf][fzf-main] 0.41.1 or above
+- For syntax-highlighted preview, install [bat](https://github.com/sharkdp/bat)
+- If [delta](https://github.com/dandavison/delta) is available, `:GFilesWithDevicons?`,
+  will use it to format `git diff` output.
+- `Ag` requires [The Silver Searcher (ag)][ag]
+- `Rg` requires [ripgrep (rg)][rg]
 
 Commands
 --------
@@ -57,6 +65,7 @@ Commands
 | `:GFilesWithDevicons?`        | Git files (`git status`)                                                |
 | `:AgWithDevicons [PATTERN]`   | [ag][ag] search result (`ALT-A` to select all, `ALT-D` to deselect all) |
 | `:RgWithDevicons [PATTERN]`   | [rg][rg] search result (`ALT-A` to select all, `ALT-D` to deselect all) |
+| `:RGWithDevicons [PATTERN]`   | [rg][rg] search result; relaunch ripgrep on every keystroke             |
 | `:LocateWithDevicons PATTERN` | `locate` command output                                                 |
 
 - Most commands support `CTRL-T` / `CTRL-X` / `CTRL-V` key
