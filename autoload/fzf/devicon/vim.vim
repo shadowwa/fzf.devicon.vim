@@ -475,9 +475,9 @@ function! fzf#devicon#vim#files(dir, ...)
   endif
 
   let args.options = ['-m', '--prompt', strwidth(dir) < &columns / 2 - 20 ? dir : '> ']
-  let args.source = $FZF_DEFAULT_COMMAND.' | devicon-lookup'
+  let args.source = $FZF_DEFAULT_COMMAND.' --color=always | devicon-lookup -i --color'
 
-  call s:merge_opts(args, get(g:, 'fzf_files_options', []))
+  call s:merge_opts(args, get(g:, 'fzf_files_options', [ '--ansi' ]))
   function! args.sink(lines) abort
     return s:devicon_common_sink(self._action, a:lines)
   endfunction
@@ -508,9 +508,10 @@ function! fzf#devicon#vim#locate(query, ...)
 
   let args = {}
 
-  let args.source = 'locate '.a:query.' | devicon-lookup'
+  let args.source = 'locate '.a:query.' | devicon-lookup -i'
   let args.options = '-m --prompt "Locate> "'
 
+  call s:merge_opts(args, get(g:, 'fzf_files_options', [ '--ansi' ]))
   function! args.sink(lines) abort
     return s:devicon_common_sink(self._action, a:lines)
   endfunction
@@ -568,10 +569,11 @@ function! fzf#devicon#vim#gitfiles(args, ...)
     if s:git_version_requirement(2, 31)
       let args.source .= ' --deduplicate'
     endif
-    let args.source .= ' | devicon-lookup'
+    let args.source .= ' | devicon-lookup -i'
     let args.dir = root
     let args.options = '-m --prompt "GitFiles> "'
 
+    call s:merge_opts(args, get(g:, 'fzf_files_options', [ '--ansi' ]))
     function! args.sink(lines) abort
       return s:devicon_common_sink(self._action, a:lines)
     endfunction
@@ -694,7 +696,7 @@ function! fzf#devicon#vim#grep(grep_command, ...)
   let name    = join(words, '-')
   let capname = join(map(words, 'toupper(v:val[0]).v:val[1:]'), '')
   let opts = {
-  \ 'source':  a:grep_command.' | devicon-lookup --color --prefix :',
+  \ 'source':  a:grep_command.' | devicon-lookup -i --color --prefix :',
   \ 'options': ['--ansi', '--prompt', capname.'> ',
   \             '--multi', '--bind', 'alt-a:select-all,alt-d:deselect-all',
   \             '--delimiter', ':', '--preview-window', '+{2}-/2']
@@ -733,8 +735,8 @@ function! fzf#devicon#vim#grep2(command_prefix, query, ...)
   \ 'source': ':',
   \ 'options': ['--ansi', '--prompt', toupper(name).'> ', '--query', a:query,
   \             '--disabled',
-  \             '--bind', 'start:reload:'.a:command_prefix.' '.shellescape(a:query) . '| devicon-lookup --color --prefix :',
-  \             '--bind', 'change:reload:'.a:command_prefix.' {q} | devicon-lookup --color --prefix : || :',
+  \             '--bind', 'start:reload:'.a:command_prefix.' '.shellescape(a:query) . '| devicon-lookup -i --color --prefix :',
+  \             '--bind', 'change:reload:'.a:command_prefix.' {q} | devicon-lookup -i --color --prefix : || :',
   \             '--multi', '--bind', 'alt-a:select-all,alt-d:deselect-all',
   \             '--delimiter', ':', '--preview-window', '+{2}-/2']
   \}

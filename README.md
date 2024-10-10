@@ -21,7 +21,7 @@ Installation
 
 ### Dependencies
 
-`fzf.devicon.vim` depends on the [devicon-lookup](https://github.com/coreyja/devicon-lookup) utility version >= 0.8
+`fzf.devicon.vim` depends on the [devicon-lookup](https://github.com/coreyja/devicon-lookup) utility version >= 0.10.0
 This must be installed separately, and can be installed via `cargo`
 
 ```
